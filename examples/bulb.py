@@ -1,40 +1,50 @@
+from magicblue import MagicBlue  # Mock magic blue library
+from pyremote import client
 
-from magicblue import MagicBlue
-import remote_object
-import gc
+# Create connection to remote server
+remote = client.Client('192.168.0.100', 5005)
 
-@remote_object.Object
+@remote.shareClassspec
 class Lightbulb(object):
   def __init__(self, bulb_mac, version):
     self._mac = bulb_mac
     self._bulb = MagicBlue(bulb_mac, version)
+    self._mirror = None
 
-  @remote_object.RemoteCall
+  @remote.expose
   def TurnOn(self):
     self._bulb.turn_on()
 
-  @remote_object.RemoteCall
+  @remote.expose
   def TurnOff(self):
     self._bulb.turn_off()
+    self._mirror = None
 
-  @remote_object.RemoteCall
+  @remote.expose
   def SetRGB(self, rgb):
     self._bulb.set_color(rgb)
+    self._mirror.SetRGB(rgb)
 
-  @remote_object.ObjectKey
+  @remote.expose
   def ID(self):
     return self._mac
 
-  @remote_object.ObjectKey
+  @remote.expose
   def Manufacturer(self):
     return 'magicblue'
 
-if __name__ == '__main__':
-  bulbs = [Lightbulb(mac, version) for (mac, version) in [
-    ('xx:xx:xx:xx:xx:xx', 10),
-    ('xx:xx:xx:xx:xx:xx', 10),
-    ('11:22:33:44:55:66', 10),
-  ]]
+  def setMirrorBulb(self, bulb):
+    self._mirror = bulb
 
-  for bulb in bulbs:
-    bulb.wait()
+if __name__ == '__main__':
+  for mac, version in [('11:99', 10), ('22:88', 10), ('33:77', 10)]:
+    bulb = Lightbulb(mac, version)
+    remote.maintain_reference(bulb)
+    if mac == '11:99':
+      # This bulb changes color when the master bulb does,
+      # but a restart breaks connection
+      mirror = Lightbulb('44:66', 10)
+      bulb.setMirrorBulb(mirror)
+      remote.weak_reference(mirror)
+
+
