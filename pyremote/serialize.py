@@ -29,9 +29,14 @@ class Serializer(object):
     if type(data) == dict:
       cls = self._known_types.get(data.get('__type__', None), None)
       if cls:
-        del data['__type__']
-        return cls(**data)
+        nd = {}
+        for k, v in data.items():
+          if k != '__type__':
+            nd[k] = self._deserialize(v)
+        return cls(**nd)
       return {k: self._deserialize(v) for k,v in data.items()}
+    if data == None:
+      return None
     raise TypeError('Cant deserialize {}'.format(data))
 
   def forThis(self, **constructor_types):
@@ -58,7 +63,7 @@ class Serializer(object):
 
       def perfect_init(obj, *args, **attrs):
         for (attr, t), value in zip(constructor_types.items(), args):
-          if t != None and type(value) != t:
+          if t != None and value != None and type(value) != t:
             type_mismatch(name, attr, t, type(value))
           obj.__dict__[attr] = value
         for attr, value in attrs.items():
@@ -72,6 +77,7 @@ class Serializer(object):
             missing.append(attr)
         if missing:
           missing_attrs(name, missing)
+        super(obj.__class__, obj).__init__()
 
       def serialize(obj):
         response = {'__type__': name}

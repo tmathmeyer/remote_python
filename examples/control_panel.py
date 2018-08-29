@@ -2,11 +2,10 @@ from pyremote import client
 
 
 # Create connection to remote server
-remote = client.Client('192.168.0.100', 5005)
+remote = client.Client('127.0.0.1', 5005)
 
 Lightbulb = remote.getClassspec('Lightbulb')
 Speaker = remote.getClassspec('Speaker')
-
 
 class PanelController(object):
   def __init__(self):

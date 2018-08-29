@@ -2,7 +2,7 @@ from magicblue import MagicBlue  # Mock magic blue library
 from pyremote import client
 
 # Create connection to remote server
-remote = client.Client('192.168.0.100', 5005)
+remote = client.Client('127.0.0.1', 5005)
 
 @remote.shareClassspec
 class Lightbulb(object):

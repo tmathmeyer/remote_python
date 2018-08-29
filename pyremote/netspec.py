@@ -1,3 +1,4 @@
+import uuid
 
 from . import serialize
 
@@ -6,12 +7,20 @@ class Netspec(object):
 
   @serializer.forThis(name=str, doc=str, methods=list)
   class Typespec(object):
-    pass
+    def __repr__(self):
+      return str(self.serialize())
+
+    def __eq__(self, other):
+      return type(other) == type(self) and other.name == self.name
+
+    def mocks(self, client, uuids):
+      pass #TODO make this return a pseudo object, which calls remotely
 
   @serializer.forThis(request=None, uuid=str)
   class ReplyRequested(object):
     def __init__(self):
-      print('proper init called')
+      if not self.uuid:
+        self.uuid = str(uuid.uuid4())
 
   @serializer.forThis(reply=None, uuid=str)
   class ReplyProvided(object):
@@ -21,15 +30,20 @@ class Netspec(object):
   class RequestTypespec(object):
     pass
 
-  @serializer.forThis(typespec=None):
+  @serializer.forThis(typespec=None)
   class GetByType(object):
     pass
 
-  def __init__(self, socket):
-    self._socket = socket
+  @serializer.forThis(typespec=None, uuid=str)
+  class Instantiate(object):
+    pass
+
+  @serializer.forThis(uuid=str)
+  class Destroy(object):
+    pass
 
   def write(self, obj, socket):
-    strdata = serializer.serialize(obj)
+    strdata = self.serializer.serialize(obj)
     bytesdata = str.encode(strdata)
     socket.send( (len(bytesdata)).to_bytes(4, byteorder='big') )
     socket.send(bytesdata)
