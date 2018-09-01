@@ -53,6 +53,7 @@ class SerializedSocketIO(object):
     self._reader.start()
     self._netspec = netspec
     self._data_locks = {}
+    self._client = client
 
   def isRunning(self):
     return True
@@ -85,7 +86,12 @@ class SerializedSocketIO(object):
         datalock.release(payload.reply)
       return
 
-    # TODO accept calls and return from them
+    if type(payload) == self._netspec.ReplyRequested:
+      result = self._client.handle_request(payload.request)
+      reply = self._netspec.ReplyProvided(result, payload.uuid)
+      self.write(reply)
+      return
+
     print(payload)
 
 
@@ -94,8 +100,38 @@ class Client(object):
   def __init__(self, ip, port):
     self._specs = netspec.Netspec()
     self._socket_io = SerializedSocketIO(ip, port, self, self._specs)
+    self._refs = {}
     self._weakrefs = {}
-    self._strongrefs = {}
+
+  def get_obj(self, uuid):
+    if uuid in self._refs:
+      return self._refs[uuid]
+    if uuid in self._weakrefs:
+      return self._weakrefs[uuid]()
+    return None
+
+  def del_obj(self, uuid):
+    if uuid in self._refs:
+      return self._refs.pop(uuid)
+    if uuid in self._weakrefs:
+      return self._weakrefs.pop(uuid)
+    return None
+
+  def handle_request(self, payload):
+    if type(payload) == self._specs.Call:
+      obj = self.get_obj(payload.uuid)
+      if not obj:
+        return self._specs.Error('LookupError', 'Object does not exist')
+      method = getattr(obj, payload.methodname, None)
+      if not method:
+        classname = obj.__class__.__name__
+        return self._specs.Error('LookupError',
+            '{} has no attribute {}'.format(classname, payload.methodname))
+      try:
+        return method(*payload.args, **payload.kwargs)
+      except Exception as e:
+        return self._specs.Error(e.__name__, str(e))
+    return None
 
   def r_call(self, req):
     """Remote call, and get a reply."""
@@ -103,7 +139,6 @@ class Client(object):
 
   def shareClassspec(self, clazz):
     """Uploads a class-specification to the server, and returns clazz."""
-    #TODO get methods
     remote_methods = []
     for method_name, method in clazz.__dict__.items():
       if getattr(method, '__remote_exposed__', False):
@@ -113,8 +148,7 @@ class Client(object):
     clazz.__typespec__ = typespec
 
     def notify_on_delete(obj):
-      if obj.__uuid__ in self._weakrefs:
-        del self._weakrefs[obj.__uuid__]
+      self.del_obj(obj.__uuid__)
       self._socket_io.write(self._specs.Destroy(obj.__uuid__))
 
     return type(clazz.__name__, (clazz, ), {
@@ -135,27 +169,38 @@ class Client(object):
     """Query server for objects of type clazz."""
     if clazz is None:
       return []
-    return clazz.mocks(self, self.r_call(self._specs.GetByType(clazz)))
+    for uuid in self.r_call(self._specs.GetByType(clazz)):
+      yield self.createMock(clazz, uuid)
+
+  def createMock(self, typespec, uuid):
+    def make_rpc(methodname):
+      def rpc(*args, **kwargs):
+        result = self.r_call(self._specs.Call(
+          uuid, methodname, list(args), kwargs))
+        if type(result) == self._specs.Error:
+          raise __builtins__[result.extype](result.msg)
+        return result
+      return rpc
+    return type(typespec.name, (object, ), {
+      method: make_rpc(method) for method in typespec.methods
+    })
 
   def maintain_reference(self, obj):
     """Holds a reference to a classspec'd object."""
     obj_id = str(uuid.uuid4())
     obj.__uuid__ = obj_id
-    self._strongrefs[obj_id] = obj
+    self._refs[obj_id] = obj
     instantiate = self._specs.Instantiate(obj.__class__.__typespec__, obj_id)
     self._socket_io.write(instantiate)
 
   def weak_reference(self, obj):
     """Maintains a weakref to a classspec'd object."""
-    print(obj)
-    print(dir(obj))
-    print(obj.__dict__)
     if not getattr(obj.__class__, 'notify_on_delete', None):
       raise TypeError(
         '{} does not have a shared typespec'.format(obj.__class__))
 
     obj_id = str(uuid.uuid4())
     obj.__uuid__ = obj_id
-    self._strongrefs[obj_id] = weakref.ref(obj)
+    self._weakrefs[obj_id] = weakref.ref(obj)
     instantiate = self._specs.Instantiate(obj.__class__.__typespec__, obj_id)
     self._socket_io.write(instantiate)

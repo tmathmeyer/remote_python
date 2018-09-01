@@ -8,13 +8,10 @@ class Netspec(object):
   @serializer.forThis(name=str, doc=str, methods=list)
   class Typespec(object):
     def __repr__(self):
-      return str(self.serialize())
+      return 'register type: {}'.format(self.name)
 
     def __eq__(self, other):
       return type(other) == type(self) and other.name == self.name
-
-    def mocks(self, client, uuids):
-      pass #TODO make this return a pseudo object, which calls remotely
 
   @serializer.forThis(request=None, uuid=str)
   class ReplyRequested(object):
@@ -22,9 +19,13 @@ class Netspec(object):
       if not self.uuid:
         self.uuid = str(uuid.uuid4())
 
+    def __repr__(self):
+      return 'request {} made'.format(self.uuid[:8])
+
   @serializer.forThis(reply=None, uuid=str)
   class ReplyProvided(object):
-    pass
+    def __repr__(self):
+      return 'response for {} given'.format(self.uuid[:8])
 
   @serializer.forThis(typename=str)
   class RequestTypespec(object):
@@ -36,10 +37,19 @@ class Netspec(object):
 
   @serializer.forThis(typespec=None, uuid=str)
   class Instantiate(object):
-    pass
+    def __repr__(self):
+      return 'instantiate {}, id={}'.format(self.typespec, self.uuid[:8])
 
   @serializer.forThis(uuid=str)
   class Destroy(object):
+    pass
+
+  @serializer.forThis(uuid=str, methodname=None, args=list, kwargs=dict)
+  class Call(object):
+    pass
+
+  @serializer.forThis(extype=str, msg=str)
+  class Error(object):
     pass
 
   def write(self, obj, socket):

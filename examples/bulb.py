@@ -23,7 +23,9 @@ class Lightbulb(object):
   @remote.expose
   def SetRGB(self, rgb):
     self._bulb.set_color(rgb)
-    self._mirror.SetRGB(rgb)
+    if self._mirror:
+      self._mirror.SetRGB(rgb)
+    return 'success'
 
   @remote.expose
   def ID(self):
@@ -46,5 +48,6 @@ if __name__ == '__main__':
       mirror = Lightbulb('44:66', 10)
       bulb.setMirrorBulb(mirror)
       remote.weak_reference(mirror)
+      mirror = None
 
 
