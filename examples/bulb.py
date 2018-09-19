@@ -2,7 +2,7 @@ from magicblue import MagicBlue  # Mock magic blue library
 from pyremote import client
 
 # Create connection to remote server
-remote = client.Client('127.0.0.1', 5005)
+remote = client.Client('192.168.0.102', 5006)
 
 @remote.shareClassspec
 class Lightbulb(object):
@@ -38,7 +38,7 @@ class Lightbulb(object):
   def setMirrorBulb(self, bulb):
     self._mirror = bulb
 
-if __name__ == '__main__':
+def main():
   for mac, version in [('11:99', 10), ('22:88', 10), ('33:77', 10)]:
     bulb = Lightbulb(mac, version)
     remote.maintain_reference(bulb)
